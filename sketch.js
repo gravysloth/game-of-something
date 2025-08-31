@@ -4,7 +4,11 @@
 //
 //
 
-let canvasSize = 600
+let pixels = []
+let gridSize = 400
+let numPerSide = 50
+let gridX, gridY, pixelSpacing
+
 
 /**
  * Enum for color teams.
@@ -12,201 +16,123 @@ let canvasSize = 600
 * @enum {{name: string, hex: string}}
 */
 const Colors = Object.freeze({
-  0: { num: 0, enemy: 1, name: "red", hex: "#f54242" },
-  1: { num: 1, enemy: 2, name: "blue", hex: "#4287f5" },
-  2: { num: 2, enemy: 3, name: "green", hex: "#69ab65" },
-  3: { num: 3, enemy: 0, name: "yellow", hex: "#fff196" }
+    RED:   { name: "red", hex: "#f54242" },
+    BLUE:  { name: "blue", hex: "#4287f5" },
+    GREEN: { name: "green", hex: "#0f0" }
 });
 
 function preload() {
 }
 
-let bricksManager, ballsManager;
-
 function setup() {
-  var canvas = createCanvas(canvasSize, canvasSize)
-  canvas.parent("sketch")
-  frameRate(60)
-  noStroke()
+    var canvas = createCanvas(600, 600)
+    canvas.parent("sketch")
+    frameRate(5)
+    noStroke()
+    ellipseMode(CENTER)
 
-  bricksManager = new BricksManager(20)
-  bricksManager.setup()
-
-  ballsManager = new BallsManager()
-  ballsManager.setup()
+    gridX = width/2 - gridSize/2
+    gridY = height/2 - gridSize/2
+    let pixelSize = gridSize / numPerSide
+    pixelSpacing = gridSize/(numPerSide-1)
+    for (let row = 0; row < numPerSide; row++) {
+        let pixelRow = []
+        for (let col = 0; col < numPerSide; col++) {
+            pixelRow.push(
+                new Pixel(
+                    gridX + col*pixelSpacing,
+                    gridY + row*pixelSpacing,
+                    pixelSize,
+                    row, col))
+        }
+        pixels.push(pixelRow)
+    }
+    console.log(pixels)
 }
 
 function draw() {
-  background(0)
+    //   background(24, 24, 26)
+    background(10, 10, 10)
 
-  bricksManager.draw()
-  ballsManager.manage()
-}
-
-class BricksManager {
-  constructor(numPerSide) {
-    this.numPerSide = numPerSide
-    this.grid = []
-    this.size = canvasSize / numPerSide
-  }
-
-  setup() {
-    for (let y = 0; y < this.numPerSide; y++) {
-      let row = []
-      for (let x = 0; x < this.numPerSide; x++) {
-        let team = Colors[0]
-        if (x >= this.numPerSide / 2) {
-          team = Colors[1]
-          if (y <= this.numPerSide / 4) {
-            team = Colors[3]
-          }
-        } else if (y >= this.numPerSide / 4 * 3) {
-          team = Colors[2]
+    for (let row = 0; row < numPerSide; row++) {
+        for (let col = 0; col < numPerSide; col++) {
+            pixels[row][col].draw()
+            pixels[row][col].calculate()
         }
-        let pos = createVector(this.size * x, this.size * y)
-        row.push(new Brick(pos, this.size, team))
-      }
-      this.grid.push(row)
     }
-  }
-
-  draw() {
-    for (let y = 0; y < this.numPerSide; y++) {
-      for (let x = 0; x < this.numPerSide; x++) {
-        this.grid[y][x].draw()
-      }
-    }
-  }
 }
 
-class Brick {
-  constructor(pos, size, team) {
-    this.pos = pos
-    this.size = size
-    this.team = team
-  }
-
-  draw() {
-    push()
-    strokeWeight(0)
-    stroke(51)
-    fill(this.team.hex)
-    rect(this.pos.x, this.pos.y, this.size, this.size)
-    pop()
-  }
-}
-
-class BallsManager {
-  constructor() {
-    this.balls = []
-    this.ballSize
-  }
-
-  setup() {
-    this.ballSize = canvasSize / bricksManager.numPerSide / 2
-    // red ball
-    this.balls.push(
-      new Ball(createVector(550, 440),
-        createVector(6, 3),
-        this.ballSize,
-        Colors[0]))
-    // blue ball
-    this.balls.push(
-      new Ball(createVector(30, 40),
-        createVector(-4, 4),
-        this.ballSize,
-        Colors[1]))
-    // green ball
-    this.balls.push(
-      new Ball(createVector(260, 40),
-        createVector(-4, 4),
-        this.ballSize,
-        Colors[2]))
-    // yellow ball
-    this.balls.push(
-      new Ball(createVector(350, 380),
-        createVector(-4, 3),
-        this.ballSize,
-        Colors[3]))
-  }
-
-  manage() {
-    for (let i = 0; i < this.balls.length; i++) {
-      this.eval(this.balls[i])
-      this.wallBounce(this.balls[i])
-      this.balls[i].move()
-      this.contain(this.balls[i])
-      this.balls[i].draw()
-    }
-  }
-
-  eval(ball) {
-    // Check multiple points around the ball's circumference
-    for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
-      let checkX = ball.pos.x + Math.cos(angle) * (ball.r);
-      let checkY = ball.pos.y + Math.sin(angle) * (ball.r);
-
-      let i = Math.floor(checkX / bricksManager.size);
-      let j = Math.floor(checkY / bricksManager.size);
-      if (i >= 0 && i < bricksManager.numPerSide && j >= 0 && j < bricksManager.numPerSide) {
-        if (ball.team.num == bricksManager.grid[j][i].team.num) {
-          bricksManager.grid[j][i].team = Colors[ball.team.enemy]
-          // Determine bounce direction based on the angle
-          if (Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle))) {
-            ball.vel.x = -ball.vel.x;
-          } else {
-            ball.vel.y = -ball.vel.y;
-          }
-
-          ball.vel.add(createVector(random(-0.1, 0.1), random(-0.1, 0.1)))
+function keyPressed() {
+    if (key == " ") {
+        for (let row = 0; row < numPerSide; row++) {
+            for (let col = 0; col < numPerSide; col++) {
+                pixels[row][col].calculate()
+            }
         }
-      }
+        console.log(pixels)
     }
-  }
-
-  wallBounce(ball) {
-    if (ball.pos.x <= ball.r || ball.pos.x >= canvasSize - ball.r) {
-      ball.vel.x = -ball.vel.x
-    }
-    if (ball.pos.y <= ball.r || ball.pos.y >= canvasSize - ball.r) {
-      ball.vel.y = - ball.vel.y
-    }
-  }
-
-  contain(ball) {
-    if (ball.pos.x < ball.r) {
-      ball.pos.x = ball.r
-    }
-    if (ball.pos.x > canvasSize - ball.r) {
-      ball.pos.x = canvasSize - ball.r
-    }
-    if (ball.pos.y < ball.r) {
-      ball.pos.y = ball.r
-    }
-    if (ball.pos.y > canvasSize - ball.r) {
-      ball.pos.y = canvasSize - ball.r
-    }
-  }
 }
 
-class Ball {
-  constructor(pos, vel, r, team) {
-    this.pos = pos
-    this.vel = vel
-    this.r = r
-    this.team = team
-  }
+function mouseClicked() {
+    let row = round((mouseY - gridY) / pixelSpacing)
+    let col = round((mouseX - gridX) / pixelSpacing)
+    if (!(row <= 0 || row >= numPerSide-1 || col <= 0 || col >= numPerSide-1)) {
+        let color = pixels[row][col].color
+        let newColor = color == Colors.RED ? Colors.BLUE : Colors.RED
+        for (let r = row - 1; r < row + 2; r++) {
+            pixels[r][col].color = newColor
+        }
+        for (let c = col - 1; c < col + 2; c++) {
+            pixels[row][c].color = newColor
+        }
+    }
+}
 
-  draw() {
-    push()
-    ellipseMode(CENTER)
-    fill(this.team.hex)
-    circle(this.pos.x, this.pos.y, this.r * 2)
-    pop()
-  }
+class Pixel {
+    constructor(x, y, size, row, col) {
+        this.x = x
+        this.y = y
+        this.size = size
+        this.row = row
+        this.col = col
+        this.state = 0
+        this.color = Colors.RED
+    }
 
-  move() {
-    this.vel.setMag(8)
-    this.pos.add(this.vel)
-  }
+    draw() {
+        push()
+        translate(this.x, this.y)
+        fill(this.color.hex)
+        // ellipse(0, 0, this.size)
+        rectMode(CENTER)
+        square(0, 0, this.size+1)
+        pop()
+    }
+
+    calculate() {
+        let blueChance = 0
+        let redChance = 0
+        let rMin = this.row == 0 ? 0 : this.row - 1
+        let rMax = this.row == numPerSide - 1 ? numPerSide - 1 : this.row + 1
+        let cMin = this.col == 0 ? 0 : this.col - 1
+        let cMax = this.col == numPerSide - 1 ? numPerSide - 1 : this.col + 1
+
+        for (let r = rMin; r <= rMax; r++) {
+            for (let c = cMin; c <= cMax; c++) {
+                let color = pixels[r][c].color
+                if (color == Colors.RED) {
+                    redChance += 1
+                } else if (color == Colors.BLUE) {
+                    blueChance += 1
+                }
+            }
+        }
+
+        let rand = random(blueChance+redChance)
+        if (rand < blueChance) {
+            this.color = Colors.BLUE
+        } else {
+            this.color = Colors.RED
+        }
+    }
 }
